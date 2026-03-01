@@ -1,0 +1,124 @@
+{
+	"runtime": {
+		"test_mode": false,
+		"verbose_logging": false,
+		"poll_interval_s": 3,
+		"hysteresis_c": 3.0,
+		"failsafe_duty_pct": 90
+	},
+	"sensors": {
+		"cpu_temp": {
+			"type": "hwmon",
+			"device": "coretemp",
+			"match": "temp1_input",
+			"aggregate": "max"
+		},
+		"cpu_coolant_temp": {
+			"type": "hwmon",
+			"device": "kraken2023",
+			"match": "temp1_input",
+			"aggregate": "max"
+		},
+		"ram_1": {
+			"type": "hwmon",
+			"device": "spd5118",
+			"match": "temp1_input",
+			"aggregate": "max"
+		},
+		"ram_2": {
+			"type": "hwmon",
+			"device": "spd5118",
+			"match": "temp1_input",
+			"aggregate": "max"
+		},
+		"ram_3": {
+			"type": "hwmon",
+			"device": "spd5118",
+			"match": "temp1_input",
+			"aggregate": "max"
+		},
+		"ram_4": {
+			"type": "hwmon",
+			"device": "spd5118",
+			"match": "temp1_input",
+			"aggregate": "max"
+		},
+		"gpu_temp": {
+			"type": "nvml",
+			"gpu_index": 0
+		}
+	},
+	"controllers": {
+		"cpu_aio_pump": {
+			"actuator": {
+				"type": "hwmon",
+				"device": "kraken2023",
+				"enable": "pwm1_enable",
+				"pwm": "pwm1"
+			},
+			"inputs": ["cpu_coolant_temp"],
+			"aggregate": "max",
+			"curve": [
+				{"temp_c": 0, "duty_pct": 90}
+			]
+		},
+		"cpu_aio_fan": {
+			"actuator": {
+				"type": "hwmon",
+				"device": "kraken2023",
+				"enable": "pwm2_enable",
+				"pwm": "pwm2"
+			},
+			"inputs": ["cpu_coolant_temp","gpu_temp"],
+			"aggregate": "max",
+			"curve": [
+				{"temp_c": 25, "duty_pct": 15},
+				{"temp_c": 30, "duty_pct": 20},
+				{"temp_c": 35, "duty_pct": 25},
+				{"temp_c": 40, "duty_pct": 30},
+				{"temp_c": 45, "duty_pct": 50},
+				{"temp_c": 50, "duty_pct": 65},
+				{"temp_c": 55, "duty_pct": 80},
+				{"temp_c": 60, "duty_pct": 100}
+			]
+		},
+		"case_fan": {
+			"actuator": {
+				"type": "hwmon",
+				"device": "nct6798",
+				"enable": "pwm1_enable",
+				"pwm": "pwm1"
+			},
+			"inputs": ["cpu_coolant_temp","gpu_temp"],
+			"aggregate": "max",
+			"curve": [
+				{"temp_c": 25, "duty_pct": 15},
+				{"temp_c": 30, "duty_pct": 20},
+				{"temp_c": 35, "duty_pct": 25},
+				{"temp_c": 40, "duty_pct": 30},
+				{"temp_c": 45, "duty_pct": 50},
+				{"temp_c": 50, "duty_pct": 65},
+				{"temp_c": 55, "duty_pct": 80},
+				{"temp_c": 60, "duty_pct": 100}
+			]
+		},
+		"gpu_fan": {
+			"actuator": {
+				"type": "nvml",
+				"gpu_index": 0,
+				"fan_index": 0
+			},
+			"inputs": ["gpu_temp"],
+			"aggregate": "max",
+			"curve": [
+				{"temp_c": 30, "duty_pct": 20},
+				{"temp_c": 35, "duty_pct": 25},
+				{"temp_c": 40, "duty_pct": 30},
+				{"temp_c": 45, "duty_pct": 50},
+				{"temp_c": 50, "duty_pct": 65},
+				{"temp_c": 55, "duty_pct": 80},
+				{"temp_c": 60, "duty_pct": 100}
+			]
+		}
+	}
+}

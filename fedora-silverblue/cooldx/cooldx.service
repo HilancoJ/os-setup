@@ -1,0 +1,76 @@
+# ===================================================================================================
+# cooldx.service | Cooling Daemon eXtended
+# ===================================================================================================
+
+[Unit]
+Description=cooldx | Cooling Daemon eXtended
+
+# Ensures `hwmon` and `nvml` are available before starting.
+After=multi-user.target systemd-modules-load.service
+After=nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+
+# ==================================================================
+# Service Section - Execution and Security Configuration
+# ==================================================================
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/local/lib/cooldx/cooldx.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cooldx
+
+# ==============================
+# Security Hardening
+# ==============================
+# Prevent privilege escalation
+NoNewPrivileges=true
+
+# Protect system directories (read-only except where needed)
+ProtectSystem=strict
+
+# Allow write access to `hwmon` (required for PWM control)
+ReadWritePaths=/sys/class/hwmon /sys/devices
+
+# Protect home directories
+ProtectHome=true
+
+# Private /tmp for isolation
+PrivateTmp=true
+
+# Restrict namespace creation
+RestrictNamespaces=true
+
+# Disallow kernel module loading
+ProtectKernelModules=true
+
+# Protect kernel tuning parameters
+ProtectKernelTunables=true
+
+# Protect kernel logs
+ProtectKernelLogs=true
+
+# Protect control groups
+ProtectControlGroups=true
+
+# Prevent writing to the hardware clock
+ProtectClock=true
+
+# Restrict realtime scheduling
+RestrictRealtime=true
+
+# Lock down personality (prevent switching execution domains)
+LockPersonality=true
+
+# No network access needed
+PrivateNetwork=true
+
+# ==================================================================
+# Install Section - System Integration
+# ==================================================================
+[Install]
+WantedBy=multi-user.target
