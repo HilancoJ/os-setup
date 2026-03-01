@@ -1,4 +1,4 @@
-# [Fedora Silverblue](setup_guide.md)
+# [Fedora Silverblue](https://fedoraproject.org/atomic-desktops/silverblue/)
 
 ## 🔒 [Immutable OS Concept](https://docs.fedoraproject.org/en-US/atomic-desktops/)
 The operating system is **read-only** at runtime, ensuring the base image remains untouched. Any modification happens by **rebuilding** or **layering** a new image instead of mutating system files in place.  
@@ -8,7 +8,7 @@ The operating system is **read-only** at runtime, ensuring the base image remain
 Further background on [Technical Information](https://docs.fedoraproject.org/en-US/atomic-desktops/technical-information/).
 
 
-## [Fedora Silverblue OS](https://fedoraproject.org/atomic-desktops/silverblue/)
+## [Fedora Silverblue Setup Guide](setup_guide.md)
 An **immutable** desktop variant of Fedora built around [OSTree](https://ostreedev.github.io/ostree/) (`rpm-ostree`). The system image is managed as atomic deployments.  
 Upgrades replace the OS image entirely and require a reboot to activate.  
 This approach enables safe, consistent upgrades and effortless rollbacks.

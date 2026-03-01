@@ -7,6 +7,21 @@
 set -uo pipefail
 
 # ===================================================================================================
+# Helper Functions
+# ===================================================================================================
+log_info() {
+    echo "[INFO] $1"
+}
+
+log_error() {
+    echo "[ERROR] $1" >&2
+}
+
+log_success() {
+    echo "[SUCCESS] $1"
+}
+
+# ===================================================================================================
 # Configuration
 # ===================================================================================================
 APP_LIST_FILE="$1"
@@ -14,8 +29,8 @@ APP_LIST_FILE="$1"
 # ===================================================================================================
 # Validation
 # ===================================================================================================
-if [ ! -f "$APP_LIST_FILE" ]; then
-    echo "ERROR: Flatpak App List was not provided or the File cannot be found."
+if [[ ! -f "$APP_LIST_FILE" ]]; then
+    log_error "Flatpak App List was not provided or the File cannot be found."
     exit 1
 fi
 
@@ -37,8 +52,8 @@ while IFS='|' read -r name id; do
     # Calculate max lengths while reading
     name_len=${#name}
     id_len=${#id}
-    [ $name_len -gt $max_name_len ] && max_name_len=$name_len
-    [ $id_len -gt $max_id_len ] && max_id_len=$id_len
+    [[ $name_len -gt $max_name_len ]] && max_name_len=$name_len
+    [[ $id_len -gt $max_id_len ]] && max_id_len=$id_len
 
 done < <(awk -F ':' '/:/ {
     # Remove leading hyphens, whitespace, and tabs from app name
@@ -114,7 +129,7 @@ for i in "${!app_names[@]}"; do
     if echo "$output" | grep -q "is already installed"; then
         # App was already installed (possibly from different remote)
         echo "Already Installed"
-    elif [ $exit_code -eq 0 ]; then
+    elif [[ $exit_code -eq 0 ]]; then
         # Installation succeeded
         echo "Installed Successfully"
     else
@@ -127,5 +142,5 @@ done
 # Display Footer
 # ===================================================================================================
 echo "$TOP_SEP"
-echo "Installation complete!"
+log_success "Installation complete!"
 echo "$TOP_SEP"

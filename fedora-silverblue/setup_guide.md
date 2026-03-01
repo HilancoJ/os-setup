@@ -320,17 +320,17 @@ The default GPU drivers are sufficient for all practical purposes.
 		| `nouveau.modeset=0` | Disables KMS (Kernel Mode Setting) fallback |
 
 		```bash
-		sudo rpm-ostree kargs \ 
-			--append=rd.driver.blacklist=nouveau \ 
-			--append=modprobe.blacklist=nouveau \ 
+		sudo rpm-ostree kargs \
+			--append=rd.driver.blacklist=nouveau \
+			--append=modprobe.blacklist=nouveau \
 			--append=nouveau.modeset=0
 		```
 
 		To undo, remove the kernel arguments:
 		```bash
-		sudo rpm-ostree kargs \ 
-			--delete=rd.driver.blacklist=nouveau \ 
-			--delete=modprobe.blacklist=nouveau \ 
+		sudo rpm-ostree kargs \
+			--delete=rd.driver.blacklist=nouveau \
+			--delete=modprobe.blacklist=nouveau \
 			--delete=nouveau.modeset=0
 		```
 		

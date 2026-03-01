@@ -39,7 +39,7 @@ log_success() {
 }
 
 check_root() {
-    if [[ $EUID -ne 0 ]]; then
+    if [[ "${EUID}" -ne 0 ]]; then
         log_error "This script must be run as root (use sudo)"
         exit 1
     fi

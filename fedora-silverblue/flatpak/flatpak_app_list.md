@@ -1,3 +1,4 @@
+# Flatpak Application List
 ## Web Browser
 - **Google Chrome**: com.google.Chrome
 - **Brave**: com.brave.Browser
@@ -33,4 +34,3 @@
 
 ## Games
 - **Steam**: com.valvesoftware.Steam
-
