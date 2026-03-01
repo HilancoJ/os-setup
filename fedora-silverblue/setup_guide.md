@@ -204,7 +204,8 @@ The default GPU drivers are sufficient for all practical purposes.
 		```
 
 	1. **Generate a Secure Boot signing key:**   
-		Generates a new private and public key pair used to sign kernel modules for Secure Boot.
+		Generates a new private and public key pair used to sign kernel modules for Secure Boot.  
+		Only required if keys were not generated when `akmods` was installed.
 		```bash
 		sudo kmodgenca -a
 		```
@@ -356,10 +357,27 @@ For custom fan curve configurations, refer to the [cooldx](cooldx/README.md) (Co
 ## 📦 User Applications
 
 1. **Enable the Flathub Repository:**  
-	Add the [Flathub](https://flathub.org/en) Repository. It is the primary source for Flatpak applications.
+	[Flathub](https://flathub.org/en) is the primary source for Flatpak applications.  
+	On Fedora Silverblue, Flathub is pre-configured at the system level but **disabled by default**.
 
+	1. **Check the current state of configured remotes:**
+		```bash
+		flatpak remotes --show-details
+		```
+
+	1. **Enable the existing system-level Flathub remote:**
+		```bash
+		sudo flatpak remote-modify --enable flathub
+		```
+
+	1. **If Flathub is not listed, add it manually:**
+		```bash
+		sudo flatpak remote-add --system flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+		```
+
+	⚠️ If a user-level Flathub remote exists from a previous attempt without `sudo`, remove it first to avoid conflicts:
 	```bash
-	flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+	flatpak remote-delete --user flathub
 	```
 
 1. **Update Existing Flatpak Applications:**  
