@@ -96,15 +96,6 @@ flowchart TD
 	e4@{ animate: true }
 	e5@{ animate: true }
 	e6@{ animate: true }
-
-	click os "./os-installation.md"
-	click gpu "./gpu-configs/README.md"
-	click amd "./gpu-configs/amd-intel.md"
-	click secure "./secure-boot/README.md"
-	click atomic "./secure-boot/atomic-akmods.md"
-	click nvidia "./gpu-configs/nvidia.md"
-	click cooldx "./cooldx/README.md"
-	click flatpak "./flatpak/README.md"
 ```
 
 <div>
