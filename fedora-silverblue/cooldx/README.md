@@ -1,18 +1,8 @@
-# cooldx | Cooling Daemon eXtended
+# ❄️ Cooling Daemon eXtended (cooldx)
 
-❄️ `cooldx` is a lightweight, configuration-driven fan and pump controller.
-
-**How it works:**
-- Reads temperature sensors from CPU, GPU and AIO coolers.
-- Controls Fan and Pump speeds using piecewise-linear temperature curves.
-- Applies hysteresis to prevent fan speed oscillation from sensor noise.
-- Runs as a `systemd` service for automatic startup and integration with `journald`.
-
-
-
-## 📜 Table of Contents
-
-- [File Component Summary](#-file-component-summary)
+- [System Design](#-system-design)
+- [Terminology](#-terminology)
+- [File Summary](#-file-summary)
 - [Discovering Hardware Devices](#-discovering-hardware-devices)
 	- [Hardware Monitoring via `hwmon`](#-hardware-monitoring-via-hwmon)
 	- [NVIDIA GPUs via `nvml`](#-nvidia-gpus-via-nvml)
@@ -28,14 +18,67 @@
 
 
 
-## 📂 File Component Summary
+## 🚀 System Design
+
+`cooldx` is a lightweight, configuration-driven fan and pump controller.
+- Reads temperature sensors from CPU, GPU and AIO coolers.
+- Controls Fan and Pump speeds using piecewise-linear temperature curves.
+- Applies hysteresis to prevent fan speed oscillation from sensor noise.
+- Runs as a `systemd` service for automatic startup and integration with `journald`.
+
+High-level overview:
+<div align="center">
+
+```mermaid
+flowchart TD
+	config(Configuration File)
+	hwmon(Hardware Monitoring)
+	nvml(NVIDIA)
+	sensors(Sensors)
+	controllers(Controllers)
+	actuators(Actuators)
+	
+	subgraph daemon [❄️ cooldx]
+		direction TD
+		sensors --> controllers 
+		controllers --> actuators
+	end
+
+	config e1@--> daemon 
+	hwmon e2@--> daemon
+	nvml e3@--> daemon
+	daemon e4@--> hwmon
+	daemon e5@--> nvml
+
+	e1@{ animate: true }
+	e2@{ animate: true }
+	e3@{ animate: true }
+	e4@{ animate: true }
+	e5@{ animate: true }
+```
+
+</div>
+<br>
+
+
+## 📜 Terminology
+
+| Term | Role |
+|------|------|
+| Sensors | Provide temperature readings from hardware components (CPU cores, GPU, liquid coolant, etc.) |
+| Actuators | Control fan/pump speeds using [PWM](#-pwm-overview) (Pulse Width Modulation), a duty cycle ranging from 0-255 (0% to 100%) |
+| Controllers | Define the relationship between sensors and actuators through temperature-to-duty cycle curves.<br>Multiple sensors can drive a single actuator using aggregation methods (`max`,`min`,`avg`) |
+
+
+
+## 📂 File Summary
 
 | File | Description |
 |------|-------------|
 | `cooldx.py` | Main daemon script. Using Python 3 [Standard Library](https://docs.python.org/3/library/index.html) only. No dependencies required. |
-| `cooldx_config.json` | Declarative JSON configuration for sensors, controllers and fan curves. |
+| `cooldx-config.json` | Declarative JSON configuration for sensors, controllers and fan curves. |
 | `cooldx.service` | `systemd` unit file for automatic startup. |
-| `cooldx_install.sh` | Installation and Uninstallation script. |
+| `cooldx-install.sh` | Installation and Uninstallation script. |
 
 
 
@@ -47,26 +90,12 @@ Hardware sensors and fan/pump controllers are accessed through two different int
 - [`nvml`](https://developer.nvidia.com/management-library-nvml): NVIDIA Management Library for GPU monitoring and control.  
 
 
-**Core Concepts:**
-
-| Component | Description |
-|-----------|-------------|
-| `sensors` | Provide temperature readings from hardware components (CPU cores, GPU, liquid coolant, etc.) |
-| `actuators` | Control fan/pump speeds using [PWM](#-pwm-overview) (Pulse Width Modulation), a duty cycle ranging from 0-255 (0% to 100%) |
-| `controllers` | Define the relationship between sensors and actuators through temperature-to-speed curves.<br>Multiple sensors can drive a single actuator using aggregation methods (`max`,`min`,`avg`) |
-
-The configuration process requires identifying:
-- Device names and sensor file paths
-- Controllable PWM channels
-- GPU indices (for NVIDIA devices)
-
----
 
 ### 💎 Hardware Monitoring via `hwmon`
 
 Linux exposes hardware monitoring devices through the [`hwmon`](https://docs.kernel.org/hwmon/hwmon-kernel-api.html) subsystem at `/sys/class/hwmon/`.  
 Devices appear as `hwmon0`, `hwmon1`, `hwmon2`, etc.  
-The numbers **change** between boots. Therefore, always identify devices by name.
+The numbers **change** between boots. 
 
 
 1. **Listing Devices**
@@ -187,22 +216,19 @@ The numbers **change** between boots. Therefore, always identify devices by name
 		echo 128 | sudo tee "/sys/class/hwmon/hwmon9/pwm2"		# 50%
 		echo 255 | sudo tee "/sys/class/hwmon/hwmon9/pwm2"		# 100%
 		```
+<br>
 
----
-
-### 💊 NVIDIA GPUs via `nvml`
+### 🎮 NVIDIA GPUs via `nvml`
 
 NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/management-library-nvml) (NVIDIA Management Library).  
 
 
-1. **Verify NVIDIA driver is installed:**
-
-	Check that the driver is operational:
+1. **Verify NVIDIA driver is installed and operational:**
 	```bash
 	nvidia-smi
 	```
 
-	If `nvidia-smi` is not found, install the [NVIDIA Drivers](../setup_guide.md#-nvidia-drivers).
+	If `nvidia-smi` is not found, install the [NVIDIA Drivers](../gpu-configs/nvidia.md).
 
 
 1. **List all GPUs:**
@@ -238,7 +264,7 @@ NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/managemen
 	EOF
 	```
 
-	**Note:** The GPU index (0, 1, 2, etc.) is stable across reboots and matches the index used in `cooldx_config.json`.
+	**Note:** The GPU index (0, 1, 2, etc.) is stable across reboots and matches the index used in `cooldx-config.json`.
 
 	Expected output:
 	```
@@ -256,6 +282,12 @@ NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/managemen
 	print("\n")
 
 	import ctypes
+
+	class NvmlUtilization(ctypes.Structure):
+	    _fields_ = [
+	        ("gpu", ctypes.c_uint),
+	        ("memory", ctypes.c_uint),
+	    ]
 	
 	gpu_index = 0  # Change this to explore different GPUs
 	
@@ -278,7 +310,7 @@ NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/managemen
 	# Fan speed (percentage)
 	try:
 	    fan = ctypes.c_uint()
-	    nvml.nvmlDeviceGetFanSpeed(handle, ctypes.byref(fan))
+	    nvml.nvmlDeviceGetFanSpeed_v2(handle, 0, ctypes.byref(fan))
 	    print(f"  - Fan Speed: {fan.value}%")
 	except:
 	    print(f"  - Fan Speed: Not available (non-controllable fan or fanless design)")
@@ -289,9 +321,10 @@ NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/managemen
 	print(f"  - Power Usage: {power.value / 1000:.1f}W")
 	
 	# GPU utilization
-	util = ctypes.c_uint()
+	util = NvmlUtilization()
 	nvml.nvmlDeviceGetUtilizationRates(handle, ctypes.byref(util))
-	print(f"  - GPU Utilization: {util.value}%")
+	print(f"  - GPU Utilization: {util.gpu}%")
+	print(f"  - Memory Utilization: {util.memory}%")
 	
 	nvml.nvmlShutdown()
 	EOF
@@ -304,6 +337,7 @@ NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/managemen
 	- Fan Speed: 33%
 	- Power Usage: 42.9W
 	- GPU Utilization: 18%
+	- Memory Utilization: 9%
 	```
 
 
@@ -317,6 +351,7 @@ NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/managemen
 	| **Fan Speed** | Current fan speed (if controllable) | Percentage (0-100%) |
 	| **Power Usage** | Current power draw | Watts (W) |
 	| **GPU Utilization** | GPU compute usage | Percentage (0-100%) |
+	| **Memory Utilization** | GPU memory controller usage | Percentage (0-100%) |
 
 
 1. **Testing fan control:**
@@ -382,7 +417,7 @@ NVIDIA GPUs are accessed through [`nvml`](https://developer.nvidia.com/managemen
 
 ### ⚙️ Configuration
 
-The configuration file `cooldx_config.json` defines runtime settings, sensors and controllers.  
+The [configuration file](cooldx-config.json) defines runtime settings, sensors and controllers.  
 
 **Prerequisites:**  
 Before configuring `cooldx`, complete the [Hardware Discovery](#-discovering-hardware-devices) process to identify:
@@ -398,9 +433,10 @@ Reference the device names, file paths and indices found during discovery.
 	| Option | Description |
 	|--------|-------------|
 	| `test_mode` | When `true`, logs actions without writing to hardware. |
+	| `verbose_logging` | When `true`, logs all actions. |
 	| `poll_interval_s` | Number of seconds between each cycle. |
 	| `hysteresis_c` | Minimum temperature change (°C) required to trigger a duty cycle update. |
-	| `failsafe_duty_pct` | Duty cycle applied if to all controllers if sensor reading fails. |
+	| `failsafe_duty_pct` | Duty cycle applied if the sensor or actuator fails. |
 
 
 1. **Sensors:**
@@ -409,21 +445,21 @@ Reference the device names, file paths and indices found during discovery.
 
 	| Parameter | Description |
 	|-----------|-------------|
-	| **hwmon:** ||
+	| <br>**hwmon:** ||
 	| `device` | Device name from `/sys/class/hwmon/*/name` (e.g. `coretemp`, `kraken2023`) |
 	| `match` | Temperature file pattern match (e.g. `temp1_input`, `temp*_input`) |
 	| `aggregate` | Method for combining multiple readings (`max`, `min`, `avg`) |
-	| **nvml:** ||
+	| <br>**nvml:** ||
 	| `gpu_index` | GPU index from NVML enumeration (e.g. `0`, `1`) |
 
 
 1. **Controllers:**
 
-	Controllers map actuators (fans/pumps) to sensors and define their respective temperature-to-speed curves.
+	Controllers map actuators (fans/pumps) to sensors and define their respective temperature-to-duty cycle curves.
 
 	| Parameter | Description |
 	|-----------|-------------|
-	| `actuator` | The PWM channel or GPU fan.<br><br>**hwmon:**<br>`device` - Device name from hwmon<br>`enable` - PWM enable file (e.g. `pwm2_enable`)<br>`pwm` - PWM control file (e.g. `pwm2`)<br><br>**nvml:**<br>`gpu_index` - GPU index<br>`fan_index` - Fan index |
+	| `actuator` | The PWM channel or GPU fan.<br><br>**hwmon:**<br>`device`: Device name from hwmon<br>`enable`: PWM enable file (e.g. `pwm2_enable`)<br>`pwm`: PWM control file (e.g. `pwm2`)<br><br>**nvml:**<br>`gpu_index`: GPU index<br>`fan_index`: Fan index |
 	| `inputs` | List of sensor names to monitor (e.g. `cpu_temp`, `gpu_temp`) |
 	| `aggregate` | How to combine multiple sensor readings (`max`, `min`, `avg`) |
 	| `curve` | Temperature-to-duty cycle mapping (piecewise linear interpolation) |
@@ -501,23 +537,18 @@ The table below is a summary of the File Directory Locations and Permissions:
 | File |  Location | Permissions | Permission Description |
 |------|-----------|-------------|------------------------|
 | `cooldx.py` | `/usr/local/lib/cooldx/` | `755` (root:root) | Executable by all, writable by root only |
-| `cooldx_config.json` | `/etc/cooldx/` | `644` (root:root) | Readable by all, writable by root |
+| `cooldx-config.json` | `/etc/cooldx/` | `644` (root:root) | Readable by all, writable by root |
 | `cooldx.service` | `/etc/systemd/system/` | `644` (root:root) | Readable by all, writable by root |
 
 
-1. Make the [installation script](cooldx_install.sh) executable:
+1. Make the [installation script](cooldx-install.sh) executable:
 	```bash
-	chmod +x cooldx_install.sh
+	chmod +x cooldx-install.sh
 	```
 
 1. Execute the installation script:
 	```bash
-	sudo ./cooldx_install.sh
-	```
-
-1. View the service file:
-	```bash
-	systemctl cat cooldx --no-pager
+	sudo ./cooldx-install.sh
 	```
 
 
@@ -525,30 +556,15 @@ The table below is a summary of the File Directory Locations and Permissions:
 
 `cooldx` runs as a `systemd` service, providing automatic startup and integration with the system journal.
 
-- Check service `status`:
-	```bash
-	systemctl status cooldx
-	```
-- `start` the service:
-	```bash
-	sudo systemctl start cooldx
-	```
-- `stop` the service:
-	```bash
-	sudo systemctl stop cooldx
-	```
-- `restart` the service :
-	```bash
-	sudo systemctl restart cooldx
-	```
-- `enable` automatic startup at boot:
-	```bash
-	sudo systemctl enable cooldx
-	```
-- `disable` automatic startup:
-	```bash
-	sudo systemctl disable cooldx
-	```
+| Command | Description |
+|:--------|:------------|
+| `systemctl status cooldx` | Check service status |
+| `sudo systemctl start cooldx` | Start the service |
+| `sudo systemctl stop cooldx` | Stop the service |
+| `sudo systemctl restart cooldx` | Restart the service |
+| `sudo systemctl enable cooldx` | Enable automatic startup at boot |
+| `sudo systemctl disable cooldx` | Disable automatic startup |
+| `systemctl cat cooldx --no-pager` | View the service file |
 
 
 
@@ -579,7 +595,7 @@ Use `journalctl` to view logs, troubleshoot issues and verify operation.
 
 Using the installation script:
 ```bash
-sudo ./cooldx_install.sh --uninstall
+sudo ./cooldx-install.sh --uninstall
 ```
 
 
@@ -601,17 +617,6 @@ The Linux `hwmon` subsystem uses an integer range of **0-255** for PWM values.
 | 100% | `255` | Full speed |
 
 
-Each controllable fan header exposes two `sysfs` files:
-
-| File | Description |
-|------|-------------|
-| `pwm*_enable` | Control mode:<br>`0` = Disabled (Set to Max)<br>`1` = Manual<br>`2+` = Automatic (BIOS/Firmware)<br> |
-| `pwm*` | Current duty cycle (0-255). |
-
-To control a fan, set `pwm*_enable` to `1`, then write the desired duty cycle to `pwmN`.
-
-
----
 
 ### 🖥️ Motherboard Fan Headers
 
@@ -621,7 +626,7 @@ These chips are manufactured by Nuvoton (NCT series), ITE (IT87 series) or Finte
 By default, Linux may not load the kernel driver for the Super I/O chip, meaning:
 - Case fan speeds won't appear in `/sys/class/hwmon/`
 - Software fan control (like `cooldx`) cannot manage motherboard fan headers
-- Fan curves are limited to BIOS-only configuration
+- Fan curves are limited to UEFI/BIOS only configuration
 
 The `nct6775` kernel module supports the Nuvoton Super I/O chip family.
 The module is named after the first chip it supported, but it handles all chips in the family:
@@ -631,17 +636,11 @@ The module is named after the first chip it supported, but it handles all chips 
 | NCT6775 | ~2011 | Original chip, driver named after it |
 | NCT6776 | ~2012 | |
 | NCT6779 | ~2013 | |
-| NCT6791 | ~2015 | |
-| NCT6792 | ~2016 | |
-| NCT6793 | ~2016 | |
-| NCT6795 | ~2017 | |
-| NCT6796 | ~2018 | |
+| ... | ... | |
 | NCT6797 | ~2019 | |
 | NCT6798 | ~2020 | Intel 400/500 series boards |
 | NCT6799 | ~2021 | Intel 600/700 series boards |
-
-**Note:** The module name `nct6775` differs from the device name reported in hwmon (e.g., `nct6799`).
-This is normal, Linux drivers are often named after the first supported chip in a family.
+| ... | ... | |
 
 
 #### Loading the Kernel Module
@@ -652,7 +651,7 @@ This is normal, Linux drivers are often named after the first supported chip in 
 	```
 
 	If output is returned, the driver is already loaded.  
-	Refer to [Hardware Monitoring via hwmon](#hardware-monitoring-via-hwmon) for details on discovering sensors and actuators.
+	Refer to [Hardware Monitoring via `hwmon`](#-hardware-monitoring-via-hwmon) for details on discovering sensors and actuators.
 
 1. **Load the nct6775 kernel module:**
 	```bash
@@ -670,9 +669,9 @@ This is normal, Linux drivers are often named after the first supported chip in 
 	```bash
 	echo "nct6775" | sudo tee /etc/modules-load.d/nct6775.conf
 	```
-	This ensures the driver loads during every boot, exposing case fans to `hwmon`.
 
-	The module is loaded automatically by the `systemd-modules-load.service`, which reads configuration files from `/etc/modules-load.d/` during boot.
+	The module is loaded automatically by the `systemd-modules-load.service`.  
+	It reads configuration files from `/etc/modules-load.d/` during boot.
 
 	View the service file:
 	```bash

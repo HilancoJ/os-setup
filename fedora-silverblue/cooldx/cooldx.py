@@ -50,7 +50,7 @@ from typing import Optional				# Type hints for optional values
 # ===================================================================================================
 # Module-level constants follow UPPER_SNAKE_CASE convention (PEP 8).
 
-CONFIG_PATH_SYSTEM = Path("/etc/cooldx/cooldx_config.json")
+CONFIG_PATH_SYSTEM = Path("/etc/cooldx/cooldx-config.json")
 """System-wide config path (preferred for systemd deployment)."""
 
 SYSTEM_INSTALL_DIR = Path("/usr/local/lib/cooldx")
@@ -89,7 +89,7 @@ def get_config_path() -> Path:
 	
 	Strategy:
 		1. If script is in '/usr/local/lib/cooldx/', use the SYSTEM config
-		2. If cooldx_config.json exists in same directory as script, use the LOCAL config
+		2. If cooldx-config.json exists in same directory as script, use the LOCAL config
 		
 	Returns:
 		Path to the configuration file.
@@ -118,7 +118,7 @@ def get_config_path() -> Path:
 			)
 	
 	# Not in system directory. Use LOCAL config (development mode)
-	config_local = script_dir / "cooldx_config.json"
+	config_local = script_dir / "cooldx-config.json"
 	if config_local.exists():
 		return config_local
 	else:
@@ -135,28 +135,38 @@ def get_config_path() -> Path:
 # ===================================================================================================
 # The logging module integrates with systemd journald when running as a service.
 
-log = logging.getLogger("cooldx")
-"""Module-level logger instance with fixed name for consistent filtering."""
-
-
-def configure_logging(verbose: bool) -> None:
+def get_cooldx_logger(verbose: Optional[bool] = None) -> logging.Logger:
 	"""
-	Configures the logging subsystem based on verbosity setting.
-	
+	Returns the cooldx logger and applies one-time handler configuration.
+
 	Args:
-		verbose: If True, logs DEBUG messages. Otherwise, INFO only.
+		verbose: If provided, updates log level (DEBUG when True, INFO when False).
+
+	Returns:
+		The configured cooldx logger.
 	"""
-	level = logging.DEBUG if verbose else logging.INFO
-	
-	# StreamHandler sends to stderr, which systemd captures to journald
-	handler = logging.StreamHandler()
-	handler.setFormatter(logging.Formatter(
-		fmt="%(asctime)s [%(levelname)s] %(message)s",
-		datefmt="%Y-%m-%d %H:%M:%S"
-	))
-	
-	log.setLevel(level)
-	log.addHandler(handler)
+	logger = logging.getLogger("cooldx")
+
+	# Configure handler exactly once to avoid duplicate log lines.
+	if not logger.handlers:
+		handler = logging.StreamHandler()
+		handler.setFormatter(logging.Formatter(
+			fmt="%(asctime)s [%(levelname)s] %(message)s",
+			datefmt="%Y-%m-%d %H:%M:%S"
+		))
+		logger.addHandler(handler)
+
+	# Keep cooldx output deterministic regardless of root logger configuration.
+	logger.propagate = False
+
+	if verbose is not None:
+		logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+
+	return logger
+
+
+log = get_cooldx_logger()
+"""Module-level logger instance with fixed name for consistent filtering."""
 
 
 
@@ -340,11 +350,13 @@ class NvmlHandle:
 				"libnvidia-ml.so.1 not found. "
 				"NVIDIA driver is required for NVML GPU control."
 			)
+
+		# Bind explicit ctypes signatures for all NVML entrypoints used by this daemon.
+		self._bind_nvml_signatures()
 		
 		# Initialize NVML
 		ret = self._nvml.nvmlInit_v2()
-		if ret != 0:
-			raise ConfigError(f"NVML initialisation failed (error code {ret})")
+		self._check_nvml(ret, "nvmlInit_v2", ConfigError)
 		
 		# Cache for GPU handles: gpu_index -> nvmlDevice_t (void pointer).
 		self._handles: dict[int, ctypes.c_void_p] = {}
@@ -355,6 +367,74 @@ class NvmlHandle:
 		# Track which fans have been manually controlled for proper cleanup on shutdown.
 		# Stores tuples of (gpu_index, fan_index) for each fan that has been set via NVML.
 		self._fan_controlled: list[tuple[int, int]] = [] 
+
+
+	def _bind_nvml_signatures(self) -> None:
+		"""Binds ctypes argtypes/restype for all NVML functions used in this file."""
+		self._nvml.nvmlErrorString.restype = ctypes.c_char_p
+		self._nvml.nvmlErrorString.argtypes = [ctypes.c_int]
+
+		self._nvml.nvmlInit_v2.restype = ctypes.c_int
+		self._nvml.nvmlInit_v2.argtypes = []
+
+		self._nvml.nvmlShutdown.restype = ctypes.c_int
+		self._nvml.nvmlShutdown.argtypes = []
+
+		self._nvml.nvmlDeviceGetHandleByIndex_v2.restype = ctypes.c_int
+		self._nvml.nvmlDeviceGetHandleByIndex_v2.argtypes = [
+			ctypes.c_uint,
+			ctypes.POINTER(ctypes.c_void_p)
+		]
+
+		self._nvml.nvmlDeviceGetName.restype = ctypes.c_int
+		self._nvml.nvmlDeviceGetName.argtypes = [
+			ctypes.c_void_p,
+			ctypes.POINTER(ctypes.c_char),
+			ctypes.c_uint
+		]
+
+		self._nvml.nvmlDeviceGetTemperature.restype = ctypes.c_int
+		self._nvml.nvmlDeviceGetTemperature.argtypes = [
+			ctypes.c_void_p,
+			ctypes.c_uint,
+			ctypes.POINTER(ctypes.c_uint)
+		]
+
+		self._nvml.nvmlDeviceSetFanSpeed_v2.restype = ctypes.c_int
+		self._nvml.nvmlDeviceSetFanSpeed_v2.argtypes = [
+			ctypes.c_void_p,
+			ctypes.c_uint,
+			ctypes.c_uint
+		]
+
+		self._nvml.nvmlDeviceGetFanSpeed_v2.restype = ctypes.c_int
+		self._nvml.nvmlDeviceGetFanSpeed_v2.argtypes = [
+			ctypes.c_void_p,
+			ctypes.c_uint,
+			ctypes.POINTER(ctypes.c_uint)
+		]
+
+		self._nvml.nvmlDeviceSetDefaultFanSpeed_v2.restype = ctypes.c_int
+		self._nvml.nvmlDeviceSetDefaultFanSpeed_v2.argtypes = [
+			ctypes.c_void_p,
+			ctypes.c_uint
+		]
+
+
+	def _nvml_error_text(self, ret: int) -> str:
+		"""Returns a readable NVML error string for a return code."""
+		err_ptr = self._nvml.nvmlErrorString(ctypes.c_int(ret))
+		if not err_ptr:
+			return "unknown"
+		return err_ptr.decode("utf-8", errors="replace")
+
+
+	def _check_nvml(self, ret: int, function_name: str, exc_type: type[Exception]) -> None:
+		"""Raises the provided exception type if an NVML call fails."""
+		if ret != 0:
+			raise exc_type(
+				f"{function_name} failed (error code {ret}: {self._nvml_error_text(ret)})"
+			)
 	
 	
 	@classmethod
@@ -388,12 +468,10 @@ class NvmlHandle:
 			# nvmlDeviceGetHandleByIndex_v2 takes a pointer to a c_void_p and fills it with the handle.
 			handle = ctypes.c_void_p()
 			ret = self._nvml.nvmlDeviceGetHandleByIndex_v2(
-				gpu_index, ctypes.byref(handle)
+				ctypes.c_uint(gpu_index), ctypes.byref(handle)
 			)
 
-			# NVML returns 0 on success. Non-zero indicates an error.
-			if ret != 0:
-				raise ConfigError(f"Failed to get GPU {gpu_index} handle (error code {ret})")
+			self._check_nvml(ret, f"nvmlDeviceGetHandleByIndex_v2(GPU {gpu_index})", ConfigError)
 			
 			# Cache the handle for future use
 			self._handles[gpu_index] = handle
@@ -425,11 +503,13 @@ class NvmlHandle:
 		
 		# Allocate buffer for device name
 		name_buffer = ctypes.create_string_buffer(NVML_DEVICE_NAME_BUFFER_SIZE)
-		ret = self._nvml.nvmlDeviceGetName(handle, name_buffer, NVML_DEVICE_NAME_BUFFER_SIZE)
+		ret = self._nvml.nvmlDeviceGetName(
+			handle,
+			name_buffer,
+			ctypes.c_uint(NVML_DEVICE_NAME_BUFFER_SIZE)
+		)
 		
-		# NVML returns 0 on success. Non-zero indicates an error.
-		if ret != 0:
-			raise ConfigError(f"NVML get device name failed (error code {ret})")
+		self._check_nvml(ret, f"nvmlDeviceGetName(GPU {gpu_index})", ConfigError)
 		
 		# Decode bytes to string and cache it
 		device_name = name_buffer.value.decode('utf-8')
@@ -457,11 +537,13 @@ class NvmlHandle:
 		
 		# Read the temperature from GPU core sensor.
 		temp = ctypes.c_uint()
-		ret = self._nvml.nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU, ctypes.byref(temp))
+		ret = self._nvml.nvmlDeviceGetTemperature(
+			handle,
+			ctypes.c_uint(NVML_TEMPERATURE_GPU),
+			ctypes.byref(temp)
+		)
 
-		# NVML returns 0 on success. Non-zero indicates an error.
-		if ret != 0:
-			raise SensorReadError(f"NVML temperature read failed (error code {ret})")
+		self._check_nvml(ret, f"nvmlDeviceGetTemperature(GPU {gpu_index})", SensorReadError)
 		
 		return float(temp.value)
 	
@@ -485,11 +567,17 @@ class NvmlHandle:
 		duty_pct = int(duty_pct)
 
 		# Update the fan speed. 
-		ret = self._nvml.nvmlDeviceSetFanSpeed_v2(handle, fan_index, duty_pct)
+		ret = self._nvml.nvmlDeviceSetFanSpeed_v2(
+			handle,
+			ctypes.c_uint(fan_index),
+			ctypes.c_uint(duty_pct)
+		)
 
-		# NVML returns 0 on success. Non-zero indicates an error.
-		if ret != 0:
-			raise ActuatorWriteError(f"NVML set fan speed failed (error code {ret})")
+		self._check_nvml(
+			ret,
+			f"nvmlDeviceSetFanSpeed_v2(GPU {gpu_index}, Fan {fan_index}, Duty {duty_pct}%)",
+			ActuatorWriteError
+		)
 		
 		# Track this fan for automatic restore on shutdown.
 		pair = (gpu_index, fan_index)
@@ -516,11 +604,17 @@ class NvmlHandle:
 		
 		# Read the current fan speed.
 		fan_speed = ctypes.c_uint()
-		ret = self._nvml.nvmlDeviceGetFanSpeed_v2(handle, fan_index, ctypes.byref(fan_speed))
+		ret = self._nvml.nvmlDeviceGetFanSpeed_v2(
+			handle,
+			ctypes.c_uint(fan_index),
+			ctypes.byref(fan_speed)
+		)
 
-		# NVML returns 0 on success. Non-zero indicates an error.
-		if ret != 0:
-			raise SensorReadError(f"NVML fan speed read failed for GPU {gpu_index} fan {fan_index} (error code {ret})")
+		self._check_nvml(
+			ret,
+			f"nvmlDeviceGetFanSpeed_v2(GPU {gpu_index}, Fan {fan_index})",
+			SensorReadError
+		)
 		
 		return fan_speed.value
 	
@@ -537,7 +631,10 @@ class NvmlHandle:
 		for gpu_index, fan_index in self._fan_controlled:
 			try:
 				handle = self._get_handle(gpu_index)
-				ret = self._nvml.nvmlDeviceSetDefaultFanSpeed_v2(handle, fan_index)
+				ret = self._nvml.nvmlDeviceSetDefaultFanSpeed_v2(
+					handle,
+					ctypes.c_uint(fan_index)
+				)
 				
 				# Get GPU name for logging (use cached name if available)
 				gpu_name = self._gpu_names.get(gpu_index, f"GPU {gpu_index}")
@@ -545,13 +642,18 @@ class NvmlHandle:
 				if ret == 0:
 					log.info(f"Restored automatic fan control for {gpu_name} (GPU {gpu_index}, Fan {fan_index})")
 				else:
-					log.warning(f"Failed to restore fan control for {gpu_name} (GPU {gpu_index}, Fan {fan_index}) (error code {ret})")
+					log.error(
+						f"Failed to restore fan control for {gpu_name} (GPU {gpu_index}, Fan {fan_index}) "
+						f"(error code {ret}: {self._nvml_error_text(ret)})"
+					)
 			except Exception as e:
 				gpu_name = self._gpu_names.get(gpu_index, f"GPU {gpu_index}")
-				log.warning(f"Error restoring fan control for {gpu_name} (GPU {gpu_index}, Fan {fan_index}): {e}")
+				log.error(f"Error restoring fan control for {gpu_name} (GPU {gpu_index}, Fan {fan_index}): {e}")
 		
 		# Shutdown NVML
-		self._nvml.nvmlShutdown()
+		ret = self._nvml.nvmlShutdown()
+		if ret != 0:
+			log.error(f"nvmlShutdown failed (error code {ret}: {self._nvml_error_text(ret)})")
 
 		# Clear the singleton instance.
 		NvmlHandle._instance = None
@@ -670,7 +772,7 @@ class HwmonSensor(Sensor):
 				millidegrees = int(sensor_file.read_text().strip())
 				temps.append(millidegrees / 1000.0)
 			except (ValueError, OSError) as e:
-				log.warning(f"Failed to read {sensor_file}: {e}")
+				log.error(f"Failed to read {sensor_file}: {e}")
 		
 		if not temps:
 			raise SensorReadError(
@@ -1281,8 +1383,8 @@ def load_config(path: Path) -> tuple[RuntimeConfig, dict[str, Sensor], dict[str,
 		failsafe_duty_pct=rt.get("failsafe_duty_pct", 90)
 	)
 	
-	# Configure logging based on runtime config
-	configure_logging(runtime.verbose_logging)
+	# Configure global cooldx logger verbosity based on runtime config.
+	get_cooldx_logger(runtime.verbose_logging)
 
 	# Log defaults for runtime optional fields
 	if "test_mode" not in rt:
@@ -1515,35 +1617,56 @@ class CoolDaemon:
 				log.error(f"[{controller.name}] Failed to enable manual control: {e}")
 
 	
-	def _set_failsafe(self) -> None:
+	def _recover_controller(self, controller: Controller, target_duty: Optional[float]) -> None:
 		"""
-		Sets all fans to failsafe (maximum) speed.
+		Attempts controller-local recovery after a sensor or actuator failure.
 		
-		Uses force=True to bypass the "skip if unchanged" optimisation.
+		Recovery order:
+			1. Re-enable manual control on the controller's actuator.
+			2. Retry the original target duty if one was already computed.
+			3. Apply controller-local failsafe duty.
+		
+		All recovery steps are best-effort. Failures are logged and the daemon continues
+		so the next poll can retry the controller again.
 		"""
-		log.warning(f"FAILSAFE: Setting all fans to {self.runtime.failsafe_duty_pct}%")
-		for controller in self.controllers.values():
+		try:
+			controller.actuator.enable_manual_control()
+			log.debug(f"[{controller.name}] Re-enabled manual control")
+		except ActuatorWriteError as e:
+			log.error(f"[{controller.name}] Failed to re-enable manual control: {e}")
+
+		if target_duty is not None:
 			try:
-				controller.apply_duty(self.runtime.failsafe_duty_pct, force=True)
+				controller.apply_duty(target_duty, force=True)
+				log.info(f"[{controller.name}] Recovered actuator control at {target_duty:.1f}%")
+				return
 			except ActuatorWriteError as e:
-				log.error(f"[{controller.name}] Failed to set failsafe: {e}")
+				log.error(f"[{controller.name}] Retry failed at {target_duty:.1f}%: {e}")
+
+		try:
+			controller.apply_duty(self.runtime.failsafe_duty_pct, force=True)
+			log.info(
+				f"[{controller.name}] Applied controller failsafe at {self.runtime.failsafe_duty_pct}%"
+			)
+		except ActuatorWriteError as e:
+			log.error(
+				f"[{controller.name}] Controller failsafe failed at "
+				f"{self.runtime.failsafe_duty_pct}%: {e}"
+			)
 
 	
-	def _control_cycle(self) -> bool:
+	def _control_cycle(self) -> None:
 		"""
 		Executes one control cycle: reads sensors, computes duty, applies.
-		
-		Returns:
-			True if cycle completed successfully, False if any sensor failed.
 		"""
-		success = True
 		
 		for controller in self.controllers.values():
 			
 			# Abort if shutdown signal received between controllers.
 			if not self.running:
-				# Not a sensor failure, so don't trigger failsafe.
-				return True  
+				return
+
+			duty: Optional[float] = None
 			
 			try:
 				# Read temperature from sensors
@@ -1557,14 +1680,13 @@ class CoolDaemon:
 					
 			except SensorReadError as e:
 				log.error(f"[{controller.name}] Sensor error: {e}")
-				success = False
+				self._recover_controller(controller, None)
 				
 			except ActuatorWriteError as e:
 				log.error(f"[{controller.name}] Actuator error: {e}")
+				self._recover_controller(controller, duty)
 
 			log.debug(f"")
-		
-		return success
 	
 	
 	def run(self) -> None:
@@ -1576,7 +1698,7 @@ class CoolDaemon:
 			2. Enables manual control on all actuators.
 			3. Repeats until signalled to stop:
 			   a. Executes control cycle.
-			   b. If sensor fails, sets failsafe.
+			   b. Recovers failed controllers individually.
 			   c. Sleeps for poll interval.
 			4. Logs shutdown on exit.
 		"""
@@ -1605,20 +1727,13 @@ class CoolDaemon:
 					log.debug(f"Polling Loop Iteration: {poll_count}")
 					poll_count += 1
 
-				success = self._control_cycle()
-				
-				if not success and self.running:
-					# At least one sensor failed during normal operation. Enter failsafe mode.
-					# Skip failsafe during shutdown. 
-					# Sensor failures are expected as dependent services are torn down by systemd.
-					self._set_failsafe()
+				self._control_cycle()
 				
 				time.sleep(self.runtime.poll_interval_s)
 				
 			except Exception as e:
-				# Catch-all for unexpected errors
+				# Catch-all for unexpected errors. Log and continue so the next poll can retry.
 				log.exception(f"Unexpected error in control loop: {e}")
-				self._set_failsafe()
 				time.sleep(self.runtime.poll_interval_s)
 		
 		# Restore automatic GPU fan control and shut down NVML if it was used
@@ -1626,7 +1741,7 @@ class CoolDaemon:
 			try:
 				NvmlHandle.get().shutdown()
 			except Exception as e:
-				log.warning(f"NVML shutdown error: {e}")
+				log.error(f"NVML shutdown error: {e}")
 		
 		log.info("")
 		log.info("cooldx shutdown successful.")

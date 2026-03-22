@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ===================================================================================================
-# cooldx_install.sh - Installation Script for cooldx
+# cooldx-install.sh - Installation Script for cooldx
 # ===================================================================================================
 
 # Exit on error, undefined vars and pipe failures
@@ -15,7 +15,7 @@ CONFIG_DIR="/etc/cooldx"
 SYSTEMD_DIR="/etc/systemd/system"
 
 SCRIPT_FILENAME="cooldx.py"
-CONFIG_FILENAME="cooldx_config.json"
+CONFIG_FILENAME="cooldx-config.json"
 SERVICE_FILENAME="cooldx.service"
 
 # Source files (relative to script location)
@@ -95,7 +95,7 @@ install_config() {
     # Copy config file (preserve existing if present)
     if [[ -f "${CONFIG_DIR}/${CONFIG_FILENAME}" ]]; then
         log_info "Existing config found. Creating backup..."
-        BACKUP_FILE="${CONFIG_DIR}/$(date +%Y-%m-%d-%H%M%S)-cooldx_config_backup.json"
+        BACKUP_FILE="${CONFIG_DIR}/$(date +%Y-%m-%d-%H%M%S)-backup-${CONFIG_FILENAME}"
         cp "${CONFIG_DIR}/${CONFIG_FILENAME}" "${BACKUP_FILE}"
         log_info "Backup saved: ${BACKUP_FILE}"
     fi

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ===================================================================================================
-# atomic_akmods_install.sh - Build and layer the atomic-akmods RPM
+# atomic-akmods-install.sh - Build and layer the atomic-akmods RPM
 # ===================================================================================================
 
 # Exit on error, undefined vars and pipe failures
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 
 CERT_FILENAME="public_key.der"
 PKEY_FILENAME="private_key.priv"
-SPEC_FILENAME="atomic_akmods.spec"
+SPEC_FILENAME="atomic-akmods.spec"
 
 SRC_CERT="/etc/pki/akmods/certs/${CERT_FILENAME}"
 SRC_PKEY="/etc/pki/akmods/private/${PKEY_FILENAME}"
