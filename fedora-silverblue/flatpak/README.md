@@ -18,6 +18,7 @@
 | <br>**Inventory:** ||
 | `flatpak list` | List all installed applications |
 | `flatpak update` | Update all applications |
+| `flatpak repair` | Repair all applications |
 | <br>**Deployment:** ||
 | `flatpak search <app>` | Search for an application |
 | `flatpak install <app-id>` | Install an application |
