@@ -8,9 +8,6 @@ BuildArch:      noarch
 Source0:        public_key.der
 Source1:        private_key.priv
 
-# Removed `Requires` field to prevent `rpmbuild` from layering it automatically into the local package. Bypassing MOK enrollment steps.
-# Requires:       akmods
-
 %description
 Packages the private key and public certificate into the OSTree staged deployment. Enabling akmods to sign kernel modules during rpm-ostree transactions.
 
