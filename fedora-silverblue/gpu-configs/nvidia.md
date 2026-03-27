@@ -4,14 +4,13 @@ The proprietary NVIDIA drivers are distributed through RPM Fusion for optimal gr
 While the open-source `nouveau` drivers are included in the Linux kernel, it does not take advantage of full hardware acceleration.  
 Reference the official RPM Fusion documentation for a [How To Guide](https://rpmfusion.org/Howto/NVIDIA).
 
-| Package | Description |
-|:--------|:------------|
-| `akmod-nvidia` | Builds, installs and signs the NVIDIA kernel module using the `akmods` framework. |
-| `xorg-x11-drv-nvidia` | Provides the NVIDIA X11/Wayland display driver and OpenGL support. |
-| `xorg-x11-drv-nvidia-libs.i686` | Provides the 32-bit NVIDIA user-space libraries including Vulkan support. |
-| `xorg-x11-drv-nvidia-libs` | Provides the 64-bit NVIDIA user-space libraries including Vulkan support. |
-| `xorg-x11-drv-nvidia-cuda` | Adds CUDA and NVDEC/NVENC support for GPU computing and video encoding/decoding. |
-
+| Package | Description | Layer |
+|:--------|:------------|:-----:|
+| `akmod-nvidia` | Builds, installs and signs the NVIDIA kernel module (`nvidia.ko`) using the `akmods` framework. | Kernel |
+| `xorg-x11-drv-nvidia` | Provides the NVIDIA X11/Wayland display driver and OpenGL support. | User |
+| `xorg-x11-drv-nvidia-libs.i686` | Provides the 32-bit NVIDIA user-space libraries including Vulkan support. | User |
+| `xorg-x11-drv-nvidia-libs` | Provides the 64-bit NVIDIA user-space libraries including Vulkan support. | User |
+| `xorg-x11-drv-nvidia-cuda` | Adds CUDA (`libcuda.so`) and NVDEC/NVENC libraries for GPU computing and hardware video encoding/decoding. | User |
 
 
 ## ⚠️ Prerequisites
@@ -38,7 +37,7 @@ Complete the [Secure Boot](../secure-boot/README.md) and [Atomic Akmods](../secu
 	systemctl reboot
 	```
 
-1. **Verify that the NVIDIA module has been built and signed:**
+1. **Verify that the NVIDIA kernel module has been built and signed:**
 	```bash
 	modinfo nvidia | grep -E 'filename|signer'
 	```
