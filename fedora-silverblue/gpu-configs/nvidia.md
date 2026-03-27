@@ -8,8 +8,8 @@ Reference the official RPM Fusion documentation for a [How To Guide](https://rpm
 |:--------|:------------|:-----:|
 | `akmod-nvidia` | Builds, installs and signs the NVIDIA kernel module (`nvidia.ko`) using the `akmods` framework. | Kernel |
 | `xorg-x11-drv-nvidia` | Provides the NVIDIA X11/Wayland display driver and OpenGL support. | User |
-| `xorg-x11-drv-nvidia-libs.i686` | Provides the 32-bit NVIDIA user-space libraries including Vulkan support. | User |
-| `xorg-x11-drv-nvidia-libs` | Provides the 64-bit NVIDIA user-space libraries including Vulkan support. | User |
+| `xorg-x11-drv-nvidia-libs.i686` | Provides the 32-bit NVIDIA libraries including Vulkan support. | User |
+| `xorg-x11-drv-nvidia-libs` | Provides the 64-bit NVIDIA libraries including Vulkan support. | User |
 | `xorg-x11-drv-nvidia-cuda` | Adds CUDA (`libcuda.so`) and NVDEC/NVENC libraries for GPU computing and hardware video encoding/decoding. | User |
 
 
