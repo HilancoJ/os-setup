@@ -15,6 +15,7 @@
 - **Mission Center**: io.missioncenter.MissionCenter
 
 ## Office Suite
+- **Obsidian**: md.obsidian.Obsidian
 - **LibreOffice**: org.libreoffice.LibreOffice
 
 ## Privacy and Security
