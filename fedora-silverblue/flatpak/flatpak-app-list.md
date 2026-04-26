@@ -15,6 +15,7 @@
 - **Mission Center**: io.missioncenter.MissionCenter
 
 ## Office Suite
+- **Okular**: org.kde.okular
 - **Obsidian**: md.obsidian.Obsidian
 - **LibreOffice**: org.libreoffice.LibreOffice
 
