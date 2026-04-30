@@ -11,6 +11,7 @@ Reference the official RPM Fusion documentation for a [How To Guide](https://rpm
 | `xorg-x11-drv-nvidia-libs.i686` | Provides the 32-bit NVIDIA libraries including Vulkan support. | User |
 | `xorg-x11-drv-nvidia-libs` | Provides the 64-bit NVIDIA libraries including Vulkan support. | User |
 | `xorg-x11-drv-nvidia-cuda` | Adds CUDA (`libcuda.so`) and NVDEC/NVENC libraries for GPU computing and hardware video encoding/decoding. | User |
+| `nvidia-container-toolkit` | Enables NVIDIA GPU support in containers (Podman, Toolbox, Distrobox) via CDI. | User |
 
 
 ## ⚠️ Prerequisites
@@ -29,7 +30,8 @@ Complete the [Secure Boot](../secure-boot/README.md) and [Atomic Akmods](../secu
 		xorg-x11-drv-nvidia \
 		xorg-x11-drv-nvidia-libs.i686 \
 		xorg-x11-drv-nvidia-libs \
-		xorg-x11-drv-nvidia-cuda
+		xorg-x11-drv-nvidia-cuda \ 
+		nvidia-container-toolkit
 	```
 
 1. **Reboot to apply the new deployment:**
